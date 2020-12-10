@@ -1,4 +1,5 @@
 # Environment
 dom-env/
 #vscode
-.vscode
+__pycache__
+*.swp
