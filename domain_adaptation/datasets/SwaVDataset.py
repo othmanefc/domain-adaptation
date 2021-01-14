@@ -1,6 +1,6 @@
-from typing import List, Union
+from typing import List, Union, Tuple
 
-import tensorflow as tf
+import tensorflow as tf  # type: ignore
 
 from domain_adaptation.datasets.utils import random_apply
 
@@ -11,38 +11,34 @@ class SwaVDataset:
                  dataset_or_path: Union[str, tf.data.Dataset, None] = None,
                  size_crops: List[int] = [224],
                  nmb_crops: List[int] = [2],
-                 min_scale_crops: List[int] = [0.14],
-                 max_scale_crops: List[int] = [1],
+                 min_scale_crops: List[float] = [0.14],
+                 max_scale_crops: List[float] = [1.],
+                 b_s: int = 16,
                  override: bool = True):
         try:
             assert len(size_crops) == len(nmb_crops)
             assert len(min_scale_crops) == len(nmb_crops)
             assert len(max_scale_crops) == len(min_scale_crops)
         except AssertionError:
-            raise Exception("Crops parameters should have equal length")
+            raise ValueError("Crops parameters should have equal length")
         if not dataset_or_path:
-            raise Exception("either a tf.Dataset or path should be passed")
+            raise ValueError("either a tf.Dataset or path should be passed")
         else:
             if isinstance(dataset_or_path, str):
                 self.dataset = tf.data.Dataset.list_files(dataset_or_path)
             elif isinstance(dataset_or_path, tf.data.Dataset):
                 self.dataset = dataset_or_path
             else:
-                raise Exception("dataset_or_path argument should either be a"
-                                " tf.Dataset or a string")
+                raise ValueError("dataset_or_path argument should either be a"
+                                 " tf.Dataset or a string")
         self.size_crops, self.nmb_crops = size_crops, nmb_crops
         self.min_scale_crops, self.max_scale_crops = (min_scale_crops,
                                                       max_scale_crops)
+        self.b_s = b_s
         self.init_dataset(override)
-        # self.dataset = dataset.map(self.pipeline)
 
-    # @staticmethod
-    # @tf.function
-    # def get_labels(self, file_path):
-    #     label = tf.strings.split(file_path, os.sep)[-2]
-    #     return tf.io.read_file(file_path), label
     def init_dataset(self, override):
-        dataloaders = tuple()
+        dataloaders: Tuple[tf.data.Dataset, ...] = tuple()
         for i in range(len(self.size_crops)):
 
             def main_func(x):
@@ -56,9 +52,10 @@ class SwaVDataset:
                     num_parallel_calls=tf.data.experimental.AUTOTUNE)
                 dataloaders += (loader,)
         if override:
-            self.dataset = tf.data.Dataset.zip(dataloaders)
+            self.dataset = tf.data.Dataset.zip(dataloaders).batch(self.b_s)
         else:
-            self.dataset_swaved = tf.data.Dataset.zip(dataloaders)
+            self.dataset_swaved = tf.data.Dataset.zip(dataloaders).batch(
+                self.b_s)
 
     def pipeline(self, img, crop_size, min_scale, max_scale):
         img = SwaVDataset.normalizing(img)

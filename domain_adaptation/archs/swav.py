@@ -2,11 +2,11 @@ from typing import List
 
 from logging import getLogger
 from itertools import groupby
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore
 
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras import models, layers, optimizers
+import numpy as np  # type: ignore
+import tensorflow as tf  # type: ignore
+from tensorflow.keras import models, layers, optimizers  # type: ignore
 
 logger = getLogger()
 
@@ -41,12 +41,10 @@ class SwAV:
         batch_size: int = 32,
     ):
         for ep in range(epochs):
-            w = self.prototype_model.get_layer("prototype").get_weights()
-            w = tf.math.l2_normalize(w, axis=1)
-            self.prototype_model.get_layer.set_weights(w)
+            SwAV.norm_layer(self.prototype_model, "prototype")
             pbar = tqdm(enumerate(dataloader))
             for i, inputs in pbar:
-                loss = self.epoch(dataloader, optimizer, i)
+                loss = self.epoch(dataloader, optimizer)
                 self.step_loss.append(loss)
                 pbar.set_description(
                     f"Current loss: {np.mean(self.step_loss):.4f}")
@@ -54,12 +52,12 @@ class SwAV:
             logger.info(f"Epoch: {ep+1}/{epochs}\t"
                         f"Loss: {np.mean(self.step_loss):.4f}")
 
-    def epoch(self, dataloader, optimizer, i):
+    def epoch(self, dataloader, optimizer):
         for _, inputs in enumerate(dataloader):
-            images = inputs.tolist()
+            images = list(inputs) 
             b_s = images[0].shape[0]
             # getting a list of consecutive idxs with same crop size
-            crop_sizes = [img[0].shape[1] for img in images]
+            crop_sizes = [img.shape[1] for img in images]
             idx_crops = tf.math.cumsum(
                 [len(list(g)) for _, g in groupby(crop_sizes)], axis=0)
             start = 0
@@ -78,13 +76,13 @@ class SwAV:
                 projection, prototype = self.prototype_model(embeddings)
                 projection = tf.stop_gradient(projection)
 
-                loss = 0
+                loss = 0.0
                 for i, crop_id in enumerate(self.crops_for_assign):
                     with tape.stop_recording():
                         out = prototype[b_s * crop_id:b_s * (crop_id + 1)]
                         clus = self.sinkhorn(out)[-b_s:]
 
-                    subloss = 0
+                    subloss = 0.0
                     for v in np.delete(
                             np.arange(np.sum(dataloader.data.nb_crops)),
                             crop_id):
@@ -97,10 +95,10 @@ class SwAV:
                         tf.reduce_sum(dataloader.data.nb_crops) - 1,
                         tf.float32)
                 loss /= len(self.crops_for_assign)
-            vars = (self.model.trainable_variables +
-                    self.prototype_model.trainable_variables)
-            gradients = tape.gradient(loss, vars)
-            optimizer.apply_gradients(zip(gradients, vars))
+            varrs = (self.model.trainable_variables +
+                     self.prototype_model.trainable_variables)
+            gradients = tape.gradient(loss, varrs)
+            optimizer.apply_gradients(zip(gradients, varrs))
 
             return loss
 
@@ -116,16 +114,16 @@ class SwAV:
                                                name="projection_normalized")
         prototype = layers.Dense(dim, use_bias=False,
                                  name="prototype")(projection2)
-        SwAV.prototype_head(prototype, "prototype")
         return models.Model(inputs=inputs, outputs=[projection2, prototype])
 
     @staticmethod
-    def prototype_head(prototype: models.Model,
-                       prototype_layer: str = "prototype") -> None:
+    def norm_layer(prototype: models.Model,
+                   prototype_layer: str = "prototype") -> None:
         weights = tf.transpose(
-            prototype.get_layer(prototype_layer).get_weigts())
+            prototype.get_layer(prototype_layer).get_weights())
         weights_norm = tf.math.l2_normalize(weights, axis=1)
-        prototype.get_layer(prototype_layer).set_weights(weights_norm)
+        prototype.get_layer(prototype_layer).set_weights(
+            tf.transpose(weights_norm))
 
     def sinkhorn(
         self,

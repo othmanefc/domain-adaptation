@@ -1,6 +1,6 @@
 import functools
 
-import tensorflow as tf
+import tensorflow as tf  # type: ignore
 
 
 def random_apply(p=0.5):
@@ -28,8 +28,8 @@ def decode_img(img, width, height, channels):
 
 def process_path(file_path, width, height, channels, with_label=False):
     img = tf.io.read_file(file_path)
-    if tf.io.is_jpeg(img):
-        img = decode_img(img, width, height, channels)
+    # if tf.io.is_jpeg(img):
+    img = decode_img(img, width, height, channels)
     if with_label:
         label = tf.strings.split(file_path)[-2]
         return img, label
