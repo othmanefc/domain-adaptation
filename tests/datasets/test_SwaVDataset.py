@@ -42,7 +42,7 @@ class TestSwaVDataset(test.TestCase):
         crops = [item for sublist in crops for item in sublist]
         for i, img in enumerate(random_images):
             shape = img.shape
-            self.assertAllLessEqual(img, 1.)
+            self.assertAllLessEqual(tf.round(img), 1.)
             self.assertAllGreaterEqual(img, 0.)
             self.assertEqual(len(shape), 4)
             self.assertTrue(shape[1] == shape[2] == crops[i])
