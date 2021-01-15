@@ -19,7 +19,7 @@ jobs:
       - name: Install CUDA
         env:
           cuda: "10.0"
-        run: /
+        run: |
           source ./scripts/actions/install_cuda.sh
           if [[ $? -eq 0 ]]; then
             echo "Adding CUDA to CUDA_PATH, PATH and LD_LIBRARY_PATH"
