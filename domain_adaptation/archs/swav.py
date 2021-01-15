@@ -43,7 +43,7 @@ class SwAV:
     ):
         for ep in range(epochs):
             SwAV.norm_layer(self.prototype_model, "prototype")
-            pbar = tqdm(enumerate(dataloader.data_swaved))
+            pbar = tqdm(enumerate(dataloader.dataset_swaved))
             for i, inputs in pbar:
                 loss = self.epoch(dataloader, optimizer)
                 self.step_loss.append(loss)
@@ -54,7 +54,7 @@ class SwAV:
                         f"Loss: {np.mean(self.step_loss):.4f}")
 
     def epoch(self, dataloader, optimizer):
-        for _, inputs in enumerate(dataloader.data_swaved):
+        for _, inputs in enumerate(dataloader.dataset_swaved):
             images = list(inputs)
             b_s = images[0].shape[0]
             # getting a list of consecutive idxs with same crop size
