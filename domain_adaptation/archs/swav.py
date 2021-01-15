@@ -1,6 +1,6 @@
 from typing import List
 
-from logging import getLogger, INFO
+import logging
 from itertools import groupby
 from tqdm import tqdm  # type: ignore
 
@@ -9,9 +9,6 @@ import tensorflow as tf  # type: ignore
 from tensorflow.keras import models, layers, optimizers  # type: ignore
 
 from domain_adaptation.datasets.SwaVDataset import SwaVDataset
-
-logger = getLogger()
-logger.setLevel(INFO)
 
 
 class SwAV:
@@ -48,22 +45,21 @@ class SwAV:
             if num_batches in [
                     tf.data.INFINITE_CARDINALITY, tf.data.UNKNOWN_CARDINALITY
             ]:
-                logger.warn(
-                    "couldn't compute number of batches, no progress bar..."
-                )
+                logging.warn(
+                    "couldn't compute number of batches, no progress bar...")
                 pbar = tqdm(enumerate(dataloader.dataset_swaved))
             else:
                 pbar = tqdm(enumerate(dataloader.dataset_swaved),
                             total=num_batches)
-            logger.info(f"Epoch: {ep+1}...")
+            logging.info(f"Epoch: {ep+1}...")
             for i, inputs in pbar:
                 loss = self.epoch(dataloader, optimizer)
                 self.step_loss.append(loss)
                 pbar.set_description(
                     f"Current loss: {np.mean(self.step_loss):.4f}")
             self.epoch_loss.append(np.mean(self.step_loss))
-            logger.info(f"Epoch: {ep+1}/{epochs}\t"
-                        f"Loss: {np.mean(self.step_loss):.4f}")
+            logging.info(f"Epoch: {ep+1}/{epochs}\t"
+                         f"Loss: {np.mean(self.step_loss):.4f}")
 
     def epoch(self, dataloader: SwaVDataset, optimizer: tf.keras.optimizers):
         for _, inputs in enumerate(dataloader.dataset_swaved):
@@ -85,6 +81,7 @@ class SwAV:
                     else:
                         embeddings = tf.concat(values=(embeddings, _embedding),
                                                axis=0)
+                    start = end
 
                 projection, prototype = self.prototype_model(embeddings)
                 projection = tf.stop_gradient(projection)
