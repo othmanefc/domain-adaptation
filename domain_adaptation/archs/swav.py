@@ -1,6 +1,6 @@
 from typing import List
 
-from logging import getLogger
+from logging import getLogger, INFO
 from itertools import groupby
 from tqdm import tqdm  # type: ignore
 
@@ -9,6 +9,7 @@ import tensorflow as tf  # type: ignore
 from tensorflow.keras import models, layers, optimizers  # type: ignore
 
 logger = getLogger()
+logger.setLevel(INFO)
 
 
 class SwAV:
@@ -54,7 +55,7 @@ class SwAV:
 
     def epoch(self, dataloader, optimizer):
         for _, inputs in enumerate(dataloader):
-            images = list(inputs) 
+            images = list(inputs)
             b_s = images[0].shape[0]
             # getting a list of consecutive idxs with same crop size
             crop_sizes = [img.shape[1] for img in images]

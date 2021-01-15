@@ -1,7 +1,10 @@
 # Environment
 dom-env/
 denv/
+build/
+dist/
 #vscode
 __pycache__
 *.swp
 .ipynb_checkpoints/
+*.egg-info
