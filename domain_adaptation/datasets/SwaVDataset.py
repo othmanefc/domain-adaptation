@@ -13,8 +13,7 @@ class SwaVDataset:
                  nmb_crops: List[int] = [2],
                  min_scale_crops: List[float] = [0.14],
                  max_scale_crops: List[float] = [1.],
-                 b_s: int = 16,
-                 override: bool = True):
+                 b_s: int = 16):
         try:
             assert len(size_crops) == len(nmb_crops)
             assert len(min_scale_crops) == len(nmb_crops)
@@ -35,9 +34,9 @@ class SwaVDataset:
         self.min_scale_crops, self.max_scale_crops = (min_scale_crops,
                                                       max_scale_crops)
         self.b_s = b_s
-        self.init_dataset(override)
+        self.init_dataset()
 
-    def init_dataset(self, override):
+    def init_dataset(self,):
         dataloaders: Tuple[tf.data.Dataset, ...] = tuple()
         for i in range(len(self.size_crops)):
 
@@ -51,11 +50,7 @@ class SwaVDataset:
                     main_func,
                     num_parallel_calls=tf.data.experimental.AUTOTUNE)
                 dataloaders += (loader,)
-        if override:
-            self.dataset = tf.data.Dataset.zip(dataloaders).batch(self.b_s)
-        else:
-            self.dataset_swaved = tf.data.Dataset.zip(dataloaders).batch(
-                self.b_s)
+        self.dataset_swaved = tf.data.Dataset.zip(dataloaders).batch(self.b_s)
 
     def pipeline(self, img, crop_size, min_scale, max_scale):
         img = SwaVDataset.normalizing(img)

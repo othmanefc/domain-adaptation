@@ -43,7 +43,7 @@ class SwAV:
     ):
         for ep in range(epochs):
             SwAV.norm_layer(self.prototype_model, "prototype")
-            pbar = tqdm(enumerate(dataloader))
+            pbar = tqdm(enumerate(dataloader.data_swaved))
             for i, inputs in pbar:
                 loss = self.epoch(dataloader, optimizer)
                 self.step_loss.append(loss)
@@ -54,7 +54,7 @@ class SwAV:
                         f"Loss: {np.mean(self.step_loss):.4f}")
 
     def epoch(self, dataloader, optimizer):
-        for _, inputs in enumerate(dataloader):
+        for _, inputs in enumerate(dataloader.data_swaved):
             images = list(inputs)
             b_s = images[0].shape[0]
             # getting a list of consecutive idxs with same crop size
@@ -85,7 +85,7 @@ class SwAV:
 
                     subloss = 0.0
                     for v in np.delete(
-                            np.arange(np.sum(dataloader.data.nb_crops)),
+                            np.arange(np.sum(dataloader.nmb_crops)),
                             crop_id):
                         prob = tf.nn.softmax(prototype[b_s * v:b_s * (v + 1)] /
                                              self.temperature)
