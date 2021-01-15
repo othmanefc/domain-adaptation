@@ -26,14 +26,16 @@ class SwaVTest(unittest.TestCase):
     flowers_root = pathlib.Path(flowers_root)
     flowers_ds = tf.data.Dataset.list_files(str(flowers_root / '*/*'))
     flowers_ds = flowers_ds.map(process_path)
+    print(tf.config.list_physical_devices('GPU'))
+    print('build with cuda', tf.test.is_built_with_cuda())
 
     def test_fit(self):
-        ds = SwaVDataset.SwaVDataset(self.flowers_ds,
-                                     override=False,
-                                     nmb_crops=[3, 4],
-                                     size_crops=[224, 168],
-                                     min_scale_crops=[224, 168],
-                                     max_scale_crops=[1., 1.]).dataset_swaved
+        ds = SwaVDataset(self.flowers_ds,
+                         override=False,
+                         nmb_crops=[3, 4],
+                         size_crops=[224, 168],
+                         min_scale_crops=[224, 168],
+                         max_scale_crops=[1., 1.]).dataset_swaved
         model = resnet.Resnet50().models
         swav_model = swav.SwAV(model=model)
         print(swav_model.prototype_model.summary())
