@@ -8,6 +8,8 @@ import numpy as np  # type: ignore
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import models, layers, optimizers  # type: ignore
 
+from domain_adaptation.datasets.SwaVDataset import SwaVDataset
+
 logger = getLogger()
 logger.setLevel(INFO)
 
@@ -36,14 +38,24 @@ class SwAV:
 
     def fit(
         self,
-        dataloader: tf.data.Dataset,  # Create a SwaVDataset param
+        dataloader: SwaVDataset,  # Create a SwaVDataset param
         optimizer: optimizers.Optimizer,
         epochs: int = 50,
-        batch_size: int = 32,
     ):
+        num_batches = dataloader.dataset_swaved.cardinality().numpy()
         for ep in range(epochs):
             SwAV.norm_layer(self.prototype_model, "prototype")
-            pbar = tqdm(enumerate(dataloader.dataset_swaved))
+            if num_batches in [
+                    tf.data.INFINITE_CARDINALITY, tf.data.UNKNOWN_CARDINALITY
+            ]:
+                logger.warn(
+                    "couldn't compute number of batches, no progress bar..."
+                )
+                pbar = tqdm(enumerate(dataloader.dataset_swaved))
+            else:
+                pbar = tqdm(enumerate(dataloader.dataset_swaved),
+                            total=num_batches)
+            logger.info(f"Epoch: {ep+1}...")
             for i, inputs in pbar:
                 loss = self.epoch(dataloader, optimizer)
                 self.step_loss.append(loss)
@@ -53,7 +65,7 @@ class SwAV:
             logger.info(f"Epoch: {ep+1}/{epochs}\t"
                         f"Loss: {np.mean(self.step_loss):.4f}")
 
-    def epoch(self, dataloader, optimizer):
+    def epoch(self, dataloader: SwaVDataset, optimizer: tf.keras.optimizers):
         for _, inputs in enumerate(dataloader.dataset_swaved):
             images = list(inputs)
             b_s = images[0].shape[0]
@@ -73,7 +85,7 @@ class SwAV:
                     else:
                         embeddings = tf.concat(values=(embeddings, _embedding),
                                                axis=0)
-                    start = end
+
                 projection, prototype = self.prototype_model(embeddings)
                 projection = tf.stop_gradient(projection)
 
@@ -84,17 +96,15 @@ class SwAV:
                         clus = self.sinkhorn(out)[-b_s:]
 
                     subloss = 0.0
-                    for v in np.delete(
-                            np.arange(np.sum(dataloader.nmb_crops)),
-                            crop_id):
+                    for v in np.delete(np.arange(np.sum(dataloader.nmb_crops)),
+                                       crop_id):
                         prob = tf.nn.softmax(prototype[b_s * v:b_s * (v + 1)] /
                                              self.temperature)
                         subloss -= tf.math.reduce_mean(
                             tf.math.reduce_sum(clus * tf.math.log(prob),
                                                axis=1))
                     loss += subloss / tf.cast(
-                        tf.reduce_sum(dataloader.nmb_crops) - 1,
-                        tf.float32)
+                        tf.reduce_sum(dataloader.nmb_crops) - 1, tf.float32)
                 loss /= len(self.crops_for_assign)
             varrs = (self.model.trainable_variables +
                      self.prototype_model.trainable_variables)
