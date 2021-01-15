@@ -93,7 +93,7 @@ class SwAV:
                             tf.math.reduce_sum(clus * tf.math.log(prob),
                                                axis=1))
                     loss += subloss / tf.cast(
-                        tf.reduce_sum(dataloader.data.nb_crops) - 1,
+                        tf.reduce_sum(dataloader.nmb_crops) - 1,
                         tf.float32)
                 loss /= len(self.crops_for_assign)
             varrs = (self.model.trainable_variables +
