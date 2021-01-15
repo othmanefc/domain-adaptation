@@ -36,7 +36,7 @@ class SwaVTest(unittest.TestCase):
                          size_crops=[224, 168],
                          min_scale_crops=[224, 168],
                          max_scale_crops=[1., 1.]).dataset_swaved
-        model = resnet.Resnet50().models
+        model = resnet.Resnet50().model
         swav_model = swav.SwAV(model=model)
         print(swav_model.prototype_model.summary())
 
