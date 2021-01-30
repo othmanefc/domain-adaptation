@@ -16,7 +16,6 @@ logger.setLevel(logging.INFO)
 
 
 class SwAV:
-
     def __init__(self,
                  model: models.Model,
                  p_d1: int = 1024,
@@ -57,7 +56,7 @@ class SwAV:
                             total=num_batches)
             logger.info(f"Epoch: {ep+1}...")
             for i, inputs in pbar:
-                loss = self.epoch(inputs, optimizer)
+                loss = self.epoch(inputs, optimizer, dataloader.nb_crops)
                 self.step_loss.append(loss)
                 pbar.set_description(
                     f"Current loss: {np.mean(self.step_loss):.4f}")
@@ -65,7 +64,7 @@ class SwAV:
             logger.info(f"Epoch: {ep+1}/{epochs}\t"
                         f"Loss: {np.mean(self.step_loss):.4f}")
 
-    def epoch(self, inputs optimizer: tf.keras.optimizers):
+    def epoch(self, inputs, optimizer: tf.keras.optimizers, nb_crops: int):
         images = list(inputs)
         b_s = images[0].shape[0]
         # getting a list of consecutive idxs with same crop size
@@ -83,7 +82,7 @@ class SwAV:
                     embeddings = _embedding
                 else:
                     embeddings = tf.concat(values=(embeddings, _embedding),
-                                            axis=0)
+                                           axis=0)
                 start = end
 
             projection, prototype = self.prototype_model(embeddings)
@@ -96,25 +95,23 @@ class SwAV:
                     clus = self.sinkhorn(out)[-b_s:]
 
                 subloss = .0
-                for v in np.delete(np.arange(np.sum(dataloader.nmb_crops)),
-                                    crop_id):
+                for v in np.delete(np.arange(np.sum(nb_crops)), crop_id):
                     prob = tf.nn.softmax(prototype[b_s * v:b_s * (v + 1)] /
-                                            self.temperature)
+                                         self.temperature)
                     subloss -= tf.math.reduce_mean(
-                        tf.math.reduce_sum(clus * tf.math.log(prob),
-                                            axis=1))
+                        tf.math.reduce_sum(clus * tf.math.log(prob), axis=1))
                 loss += subloss / tf.cast(
-                    tf.reduce_sum(dataloader.nmb_crops) - 1, tf.float32)
+                    tf.reduce_sum(nb_crops) - 1, tf.float32)
             loss /= len(self.crops_for_assign)
         varrs = (self.model.trainable_variables +
-                    self.prototype_model.trainable_variables)
+                 self.prototype_model.trainable_variables)
         gradients = tape.gradient(loss, varrs)
         optimizer.apply_gradients(zip(gradients, varrs))
 
         return loss
 
     def prototype(self, d1: int, d2: int, dim: int) -> models.Model:
-        inputs = layers.Input((2048,))
+        inputs = layers.Input((2048, ))
         projection1 = layers.Dense(d1)(inputs)
         projection1 = layers.BatchNormalization()(projection1)
         projection1 = layers.Activation("relu")(projection1)
@@ -158,4 +155,5 @@ class SwAV:
 
     def load(self, path):
         self.model = models.load_model(os.path.join(path, "main_model"))
-        self.prototype = models.load_model(os.path.join(path, "prototype_model"))
+        self.prototype = models.load_model(
+            os.path.join(path, "prototype_model"))
