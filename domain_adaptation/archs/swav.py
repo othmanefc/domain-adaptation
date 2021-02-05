@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Tuple
 
 import logging
 from itertools import groupby
@@ -16,6 +16,7 @@ logger.setLevel(logging.INFO)
 
 
 class SwAV:
+
     def __init__(self,
                  model: models.Model,
                  p_d1: int = 1024,
@@ -64,7 +65,8 @@ class SwAV:
             logger.info(f"Epoch: {ep+1}/{epochs}\t"
                         f"Loss: {np.mean(self.step_loss):.4f}")
 
-    def epoch(self, inputs, optimizer: tf.keras.optimizers, nb_crops: int):
+    def epoch(self, inputs: Tuple, optimizer: tf.keras.optimizers,
+              nb_crops: List[int]) -> float:
         images = list(inputs)
         b_s = images[0].shape[0]
         # getting a list of consecutive idxs with same crop size
@@ -111,7 +113,7 @@ class SwAV:
         return loss
 
     def prototype(self, d1: int, d2: int, dim: int) -> models.Model:
-        inputs = layers.Input((2048, ))
+        inputs = layers.Input((2048,))
         projection1 = layers.Dense(d1)(inputs)
         projection1 = layers.BatchNormalization()(projection1)
         projection1 = layers.Activation("relu")(projection1)
@@ -136,7 +138,7 @@ class SwAV:
     def sinkhorn(
         self,
         scores,
-    ):
+    ) -> tf.Tensor:
         Q = tf.transpose(tf.exp(scores / self.epsilon))
         Q /= tf.keras.backend.sum(Q)
         K, B = Q.shape
