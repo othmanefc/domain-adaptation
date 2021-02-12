@@ -58,14 +58,15 @@ class DeepCluster:
             self.assignements = self._cluster_memory(
                 size_dataset=num_batches * dataloader.b_s,
                 nb_kmeans_iters=nb_kmeans_iters)
+            self.step_loss = []
             for i, inputs in pbar:
                 loss = self.epoch(inputs, optimizer, i, dataloader.nmb_crops)
                 self.step_loss.append(loss)
                 pbar.set_description(
                     f"Current loss {np.mean(self.step_loss):.4f}")
-            self.epoch_loss.append(np.mean(self.step_loss))
-            logger.info(f"Epoch: {ep+1}/{epochs}\t"
-                        f"Loss: {np.mean(self.step_loss):.4f}")
+            epoch_loss = np.mean(self.step_loss)
+            self.epoch_loss.append(epoch_loss)
+            logger.info(f"Epoch: {ep+1}/{epochs} Loss: {epoch_loss:.4f}")
 
     def epoch(self, inputs: Tuple, optimizer: tf.optimizers, idx: int,
               nb_crops: List[int]) -> float:
@@ -77,8 +78,7 @@ class DeepCluster:
         start = 0
         with tf.GradientTape() as tape:
             for end in idx_crops:
-                concat_input = tf.stop_gradient(
-                    tf.concat(values=inputs[start:end], axis=0))
+                concat_input = tf.concat(values=inputs[start:end], axis=0)
                 _embedding = self.model(concat_input)
                 if start == 0:
                     embeddings = _embedding
@@ -86,16 +86,15 @@ class DeepCluster:
                     embeddings = tf.concat(values=(embeddings, _embedding),
                                            axis=0)
                 start = end
-            _, prototypes = self.prototype_model(embeddings)
-            prototypes = [tf.stop_gradient(prot) for prot in prototypes]
+            projection, prototypes = self.prototype_model(embeddings)
+            # prototypes = tf.stop_gradient(prototypes)
 
             loss = .0
             for h in range(len(self.nmb_prototypes)):
-                with tape.stop_recording():
-                    scores = prototypes[h] / self.temperature
-                    targets = tf.tile(
-                        self.assignements[h][b_s * idx:b_s * (idx + 1)],
-                        [sum(nb_crops)])
+                scores = prototypes[h] / self.temperature
+                targets = tf.tile(
+                    self.assignements[h][b_s * idx:b_s * (idx + 1)],
+                    [sum(nb_crops)])
                 loss += tf.reduce_mean(
                     tf.nn.sparse_softmax_cross_entropy_with_logits(
                         targets, scores))
@@ -105,7 +104,7 @@ class DeepCluster:
         gradients = tape.gradient(loss, varrs)
         optimizer.apply_gradients(zip(gradients, varrs))
 
-        self._update_memory(b_s, start, idx, embeddings)
+        self._update_memory(b_s, start, idx, projection)
         start += b_s
 
         return loss
@@ -210,11 +209,11 @@ class DeepCluster:
         return assignements
 
     def _update_memory(self, b_s: int, start_idx: int, idx: int,
-                       embeddings: tf.Variable) -> None:
-        self.local_memory_idx[idx:idx + b_s].assign([idx] * b_s)
+                       projection: tf.Variable) -> None:
+        self.local_mem_idx[idx:idx + b_s].assign([idx] * b_s)
         for i, crop_idx in enumerate(self.crops_for_assign):
             self.local_mem_ebds[i, start_idx:start_idx + b_s].assign(
-                embeddings[crop_idx * b_s:(crop_idx + 1) * b_s])
+                projection[crop_idx * b_s:(crop_idx + 1) * b_s])
 
     def _broadcast(self, mask: tf.Tensor,
                    broadcasted_to: tf.Variable) -> tf.Tensor:
