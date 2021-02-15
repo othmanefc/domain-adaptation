@@ -58,12 +58,12 @@ class TestDeepCluster(test.TestCase):
 
     def test_fit(self):
         DECAY_STEPS = 1000
-        EPOCHS = 5
+        EPOCHS = 2
         lr_decayed_fn = tf.keras.experimental.CosineDecay(
             initial_learning_rate=0.1, decay_steps=DECAY_STEPS)
         opt = tf.keras.optimizers.SGD(learning_rate=lr_decayed_fn)
         self.swav_mod.fit(self.ds, optimizer=opt, epochs=EPOCHS)
-        self.assertEqual(len(self.swav_mod.epoch_loss, EPOCHS))
+        self.assertEqual(len(self.swav_mod.epoch_loss), EPOCHS)
 
 
 if __name__ == '__main__':
