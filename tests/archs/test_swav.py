@@ -2,7 +2,7 @@ import unittest
 import pathlib
 
 import tensorflow as tf
-from tenosrflow import test
+from tensorflow import test
 
 from domain_adaptation.archs.swav import SwAV
 from domain_adaptation.datasets.SwaVDataset import SwaVDataset
