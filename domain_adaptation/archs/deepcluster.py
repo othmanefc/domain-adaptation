@@ -1,4 +1,5 @@
 from typing import List, Tuple
+import os
 import logging
 from itertools import groupby, compress
 from tqdm import tqdm
@@ -231,3 +232,13 @@ class DeepCluster:
         matrix = csr_matrix((cols, (data.ravel(), cols)),
                             shape=(int(data.max()) + 1, data.size))
         return [np.unravel_index(row.data, data.shape) for row in matrix]
+
+    def save(self, path):
+        directory = os.mkdir(path)
+        self.model.save(os.path.join(directory, "main_model"))
+        self.prototype_model.save(os.path.join(directory, "prototype_model"))
+
+    def load(self, path):
+        self.model = models.load_model(os.path.join(path, "main_model"))
+        self.prototype_model = models.load_model(
+            os.path.join(path, "prototype_model"))

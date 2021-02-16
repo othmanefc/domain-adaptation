@@ -56,6 +56,7 @@ class SwAV:
                 pbar = tqdm(enumerate(dataloader.dataset_swaved),
                             total=num_batches)
             logger.info(f"Epoch: {ep+1}...")
+            self.step_loss = []
             for i, inputs in pbar:
                 loss = self.epoch(inputs, optimizer, dataloader.nb_crops)
                 self.step_loss.append(loss)
@@ -157,5 +158,5 @@ class SwAV:
 
     def load(self, path):
         self.model = models.load_model(os.path.join(path, "main_model"))
-        self.prototype = models.load_model(
+        self.prototype_model = models.load_model(
             os.path.join(path, "prototype_model"))

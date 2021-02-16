@@ -15,6 +15,8 @@ class SwaVDataset:
                  max_scale_crops: List[float] = [1.],
                  b_s: int = 16):
         try:
+            assert size_crops == sorted(size_crops, reverse=True), \
+                "Size Crops should be in descending order"
             assert len(size_crops) == len(nmb_crops)
             assert len(min_scale_crops) == len(nmb_crops)
             assert len(max_scale_crops) == len(min_scale_crops)
