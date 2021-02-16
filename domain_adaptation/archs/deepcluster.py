@@ -11,7 +11,7 @@ from tensorflow.keras import models, layers, optimizers
 
 from domain_adaptation.datasets.SwaVDataset import SwaVDataset
 
-logger = logging.getLogger()
+logger = logging.getLogger('trainer')
 logger.setLevel(logging.INFO)
 
 

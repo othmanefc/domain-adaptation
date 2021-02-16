@@ -11,7 +11,7 @@ from tensorflow.keras import models, layers, optimizers  # type: ignore
 
 from domain_adaptation.datasets.SwaVDataset import SwaVDataset
 
-logger = logging.getLogger()
+logger = logging.getLogger('trainer')
 logger.setLevel(logging.INFO)
 
 
@@ -58,7 +58,7 @@ class SwAV:
             logger.info(f"Epoch: {ep+1}...")
             self.step_loss = []
             for i, inputs in pbar:
-                loss = self.epoch(inputs, optimizer, dataloader.nb_crops)
+                loss = self.epoch(inputs, optimizer, dataloader.nmb_crops)
                 self.step_loss.append(loss)
                 pbar.set_description(
                     f"Current loss: {np.mean(self.step_loss):.4f}")
