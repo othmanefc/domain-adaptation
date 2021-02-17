@@ -33,7 +33,7 @@ class TestSwAV(test.TestCase):
     MIN_SCALE_CROPS = [.14, .16]
     MAX_SCALE_CROPS = [1., 1.]
     b_s = 32
-    ds = SwaVDataset(flowers_ds,
+    ds = SwaVDataset(flowers_ds.take(256),
                      size_crops=SIZE_CROPS,
                      nmb_crops=NMB_CROPS,
                      min_scale_crops=MIN_SCALE_CROPS,
