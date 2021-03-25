@@ -16,27 +16,7 @@ jobs:
         with:
           python-version: 3.8
 
-      - name: Install CUDA
-        env:
-          cuda: "10.0"
-        run: |
-          source ./scripts/actions/install_cuda.sh
-          if [[ $? -eq 0 ]]; then
-            echo "Adding CUDA to CUDA_PATH, PATH and LD_LIBRARY_PATH"
-            echo "CUDA_PATH=${CUDA_PATH}" >> $GITHUB_ENV
-            echo "${CUDA_PATH}/bin" >> $GITHUB_PATH
-            echo "LD_LIBRARY_PATH=${CUDA_PATH}/lib:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
-          fi
-        shell: bash
-
-      - name: Install/Select gcc and g++ 
-        run: |
-          sudo apt-get install -y gcc-8 g++-8
-          echo "CC=/usr/bin/gcc-8" >> $GITHUB_ENV
-          echo "CXX=/usr/bin/g++-8" >> $GITHUB_ENV
-          echo "CUDAHOSTCXX=/usr/bin/g++-8" >> $GITHUB_ENV
-
-      - name: Install dependencies
+     - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install flake8 pytest
