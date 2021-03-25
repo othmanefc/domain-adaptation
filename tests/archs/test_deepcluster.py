@@ -46,6 +46,7 @@ class TestDeepCluster(test.TestCase):
                            p_d1=P_D1,
                            feat_dim=FEAT_DIM,
                            nmb_prototypes=PROTOTYPES,
+                           input_shape=(2048,),
                            crops_for_assign=[0, 1],
                            temperature=.1)
 

@@ -22,6 +22,7 @@ class DeepCluster:
                  p_d1: int,
                  feat_dim: int,
                  nmb_prototypes: List[int],
+                 input_shape: Tuple[int],
                  crops_for_assign: List[int],
                  temperature: float = 0.1):
         self.model = model
@@ -29,10 +30,12 @@ class DeepCluster:
         self.nmb_prototypes = nmb_prototypes
         self.p_d1, self.p_dim = p_d1, feat_dim
         self.feat_dim = feat_dim
+        self.input_shape = input_shape
         self.l2norm = True
         self.temperature = 0.1,
         self.prototype_model = self.prototype(self.p_d1, self.feat_dim,
-                                              self.nmb_prototypes)
+                                              self.nmb_prototypes,
+                                              self.input_shape)
         self.epoch_loss: List[float] = []
         self.step_loss: List[float] = []
 
@@ -110,8 +113,9 @@ class DeepCluster:
 
         return loss
 
-    def prototype(self, d1: int, d2: int, dims: List[int]) -> models.Model:
-        inputs = layers.Input((2048,))
+    def prototype(self, d1: int, d2: int, dims: List[int],
+                  input_shape: Tuple[int]) -> models.Model:
+        inputs = layers.Input(input_shape)
         projection1 = layers.Dense(d1)(inputs)
         projection1 = layers.BatchNormalization()(projection1)
         projection1 = layers.Activation("relu")(projection1)

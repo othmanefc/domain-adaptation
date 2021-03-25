@@ -46,6 +46,7 @@ class TestSwAV(test.TestCase):
                     p_d1=P_D1,
                     p_d2=P_D2,
                     p_dim=P_DIM,
+                    input_shape=(2048,),
                     normalize=True,
                     sinkhorn_iter=5,
                     epsilon=0.05,

@@ -22,6 +22,7 @@ class SwAV:
                  p_d1: int = 1024,
                  p_d2: int = 96,
                  p_dim: int = 10,
+                 input_shape: Tuple[int] = (2048,),
                  normalize: bool = True,
                  sinkhorn_iter: int = 5,
                  epsilon: float = 0.05,
@@ -30,7 +31,9 @@ class SwAV:
         self.model = model
         self.l2norm = normalize
         self.p_d1, self.p_d2, self.p_dim = p_d1, p_d2, p_dim
-        self.prototype_model = self.prototype(self.p_d1, self.p_d2, self.p_dim)
+        self.input_shape = input_shape
+        self.prototype_model = self.prototype(self.p_d1, self.p_d2, self.p_dim,
+                                              self.input_shape)
         self.sinkhorn_iter, self.epsilon = sinkhorn_iter, epsilon
         self.temperature = temperature
         self.crops_for_assign = crops_for_assign
@@ -113,8 +116,9 @@ class SwAV:
 
         return loss
 
-    def prototype(self, d1: int, d2: int, dim: int) -> models.Model:
-        inputs = layers.Input((2048,))
+    def prototype(self, d1: int, d2: int, dim: int,
+                  input_shape: Tuple[int]) -> models.Model:
+        inputs = layers.Input(input_shape)
         projection1 = layers.Dense(d1)(inputs)
         projection1 = layers.BatchNormalization()(projection1)
         projection1 = layers.Activation("relu")(projection1)
