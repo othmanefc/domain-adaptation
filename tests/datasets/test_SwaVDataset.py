@@ -36,7 +36,7 @@ class TestSwaVDataset(test.TestCase):
                               min_scale_crops=[0.14, 0.16],
                               max_scale_crops=[1., 1.],
                               b_s=b_s)
-        random_images = next(iter(swav_ds.dataset.take(1)))
+        random_images = next(iter(swav_ds.dataset_swaved.take(1)))
         self.assertEqual(len(random_images), sum(nmb_crops))
         crops = [[i] * j for (i, j) in zip(size_crops, nmb_crops)]
         crops = [item for sublist in crops for item in sublist]

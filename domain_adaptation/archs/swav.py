@@ -1,6 +1,7 @@
-from typing import List
+import os
+from typing import List, Tuple
 
-from logging import getLogger, INFO
+import logging
 from itertools import groupby
 from tqdm import tqdm  # type: ignore
 
@@ -8,8 +9,10 @@ import numpy as np  # type: ignore
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import models, layers, optimizers  # type: ignore
 
-logger = getLogger()
-logger.setLevel(INFO)
+from domain_adaptation.datasets.SwaVDataset import SwaVDataset
+
+logger = logging.getLogger('trainer')
+logger.setLevel(logging.INFO)
 
 
 class SwAV:
@@ -19,6 +22,7 @@ class SwAV:
                  p_d1: int = 1024,
                  p_d2: int = 96,
                  p_dim: int = 10,
+                 input_shape: Tuple[int] = (2048,),
                  normalize: bool = True,
                  sinkhorn_iter: int = 5,
                  epsilon: float = 0.05,
@@ -27,7 +31,9 @@ class SwAV:
         self.model = model
         self.l2norm = normalize
         self.p_d1, self.p_d2, self.p_dim = p_d1, p_d2, p_dim
-        self.prototype_model = self.prototype(self.p_d1, self.p_d2, self.p_dim)
+        self.input_shape = input_shape
+        self.prototype_model = self.prototype(self.p_d1, self.p_d2, self.p_dim,
+                                              self.input_shape)
         self.sinkhorn_iter, self.epsilon = sinkhorn_iter, epsilon
         self.temperature = temperature
         self.crops_for_assign = crops_for_assign
@@ -36,16 +42,26 @@ class SwAV:
 
     def fit(
         self,
-        dataloader: tf.data.Dataset,  # Create a SwaVDataset param
+        dataloader: SwaVDataset,  # Create a SwaVDataset param
         optimizer: optimizers.Optimizer,
         epochs: int = 50,
-        batch_size: int = 32,
     ):
+        num_batches = dataloader.dataset_swaved.cardinality().numpy()
         for ep in range(epochs):
             SwAV.norm_layer(self.prototype_model, "prototype")
-            pbar = tqdm(enumerate(dataloader))
+            if num_batches in [
+                    tf.data.INFINITE_CARDINALITY, tf.data.UNKNOWN_CARDINALITY
+            ]:
+                logger.warn(
+                    "couldn't compute number of batches, no progress bar...")
+                pbar = tqdm(enumerate(dataloader.dataset_swaved))
+            else:
+                pbar = tqdm(enumerate(dataloader.dataset_swaved),
+                            total=num_batches)
+            logger.info(f"Epoch: {ep+1}...")
+            self.step_loss = []
             for i, inputs in pbar:
-                loss = self.epoch(dataloader, optimizer)
+                loss = self.epoch(inputs, optimizer, dataloader.nmb_crops)
                 self.step_loss.append(loss)
                 pbar.set_description(
                     f"Current loss: {np.mean(self.step_loss):.4f}")
@@ -53,58 +69,56 @@ class SwAV:
             logger.info(f"Epoch: {ep+1}/{epochs}\t"
                         f"Loss: {np.mean(self.step_loss):.4f}")
 
-    def epoch(self, dataloader, optimizer):
-        for _, inputs in enumerate(dataloader):
-            images = list(inputs)
-            b_s = images[0].shape[0]
-            # getting a list of consecutive idxs with same crop size
-            crop_sizes = [img.shape[1] for img in images]
-            idx_crops = tf.math.cumsum(
-                [len(list(g)) for _, g in groupby(crop_sizes)], axis=0)
-            start = 0
+    def epoch(self, inputs: Tuple, optimizer: tf.keras.optimizers,
+              nb_crops: List[int]) -> float:
+        images = list(inputs)
+        b_s = images[0].shape[0]
+        # getting a list of consecutive idxs with same crop size
+        crop_sizes = [img.shape[1] for img in images]
+        idx_crops = tf.math.cumsum(
+            [len(list(g)) for _, g in groupby(crop_sizes)], axis=0)
+        start = 0
 
-            with tf.GradientTape() as tape:
-                for end in idx_crops:
-                    concat_input = tf.stop_gradient(
-                        tf.concat(values=inputs[start:end], axis=0))
-                    _embedding = self.model(concat_input)
-                    if start == 0:
-                        embeddings = _embedding
-                    else:
-                        embeddings = tf.concat(values=(embeddings, _embedding),
-                                               axis=0)
-                    start = end
-                projection, prototype = self.prototype_model(embeddings)
-                projection = tf.stop_gradient(projection)
+        with tf.GradientTape() as tape:
+            for end in idx_crops:
+                concat_input = tf.stop_gradient(
+                    tf.concat(values=inputs[start:end], axis=0))
+                _embedding = self.model(concat_input)
+                if start == 0:
+                    embeddings = _embedding
+                else:
+                    embeddings = tf.concat(values=(embeddings, _embedding),
+                                           axis=0)
+                start = end
 
-                loss = 0.0
-                for i, crop_id in enumerate(self.crops_for_assign):
-                    with tape.stop_recording():
-                        out = prototype[b_s * crop_id:b_s * (crop_id + 1)]
-                        clus = self.sinkhorn(out)[-b_s:]
+            projection, prototype = self.prototype_model(embeddings)
+            projection = tf.stop_gradient(projection)
 
-                    subloss = 0.0
-                    for v in np.delete(
-                            np.arange(np.sum(dataloader.data.nb_crops)),
-                            crop_id):
-                        prob = tf.nn.softmax(prototype[b_s * v:b_s * (v + 1)] /
-                                             self.temperature)
-                        subloss -= tf.math.reduce_mean(
-                            tf.math.reduce_sum(clus * tf.math.log(prob),
-                                               axis=1))
-                    loss += subloss / tf.cast(
-                        tf.reduce_sum(dataloader.data.nb_crops) - 1,
-                        tf.float32)
-                loss /= len(self.crops_for_assign)
-            varrs = (self.model.trainable_variables +
-                     self.prototype_model.trainable_variables)
-            gradients = tape.gradient(loss, varrs)
-            optimizer.apply_gradients(zip(gradients, varrs))
+            loss = .0
+            for i, crop_id in enumerate(self.crops_for_assign):
+                with tape.stop_recording():
+                    out = prototype[b_s * crop_id:b_s * (crop_id + 1)]
+                    clus = self.sinkhorn(out)[-b_s:]
 
-            return loss
+                subloss = .0
+                for v in np.delete(np.arange(np.sum(nb_crops)), crop_id):
+                    prob = tf.nn.softmax(prototype[b_s * v:b_s * (v + 1)] /
+                                         self.temperature)
+                    subloss -= tf.math.reduce_mean(
+                        tf.math.reduce_sum(clus * tf.math.log(prob), axis=1))
+                loss += subloss / tf.cast(
+                    tf.reduce_sum(nb_crops) - 1, tf.float32)
+            loss /= len(self.crops_for_assign)
+        varrs = (self.model.trainable_variables +
+                 self.prototype_model.trainable_variables)
+        gradients = tape.gradient(loss, varrs)
+        optimizer.apply_gradients(zip(gradients, varrs))
 
-    def prototype(self, d1: int, d2: int, dim: int) -> models.Model:
-        inputs = layers.Input((2048,))
+        return loss
+
+    def prototype(self, d1: int, d2: int, dim: int,
+                  input_shape: Tuple[int]) -> models.Model:
+        inputs = layers.Input(input_shape)
         projection1 = layers.Dense(d1)(inputs)
         projection1 = layers.BatchNormalization()(projection1)
         projection1 = layers.Activation("relu")(projection1)
@@ -129,7 +143,7 @@ class SwAV:
     def sinkhorn(
         self,
         scores,
-    ):
+    ) -> tf.Tensor:
         Q = tf.transpose(tf.exp(scores / self.epsilon))
         Q /= tf.keras.backend.sum(Q)
         K, B = Q.shape
@@ -140,3 +154,13 @@ class SwAV:
             Q *= tf.expand_dims((r / u), axis=1)
             Q *= tf.expand_dims(c / tf.keras.backend.sum(Q, axis=0), axis=0)
         return tf.transpose(Q / tf.keras.backend.sum(Q, axis=0, keepdims=True))
+
+    def save(self, path):
+        directory = os.mkdir(path)
+        self.model.save(os.path.join(directory, "main_model"))
+        self.prototype_model.save(os.path.join(directory, "prototype_model"))
+
+    def load(self, path):
+        self.model = models.load_model(os.path.join(path, "main_model"))
+        self.prototype_model = models.load_model(
+            os.path.join(path, "prototype_model"))
